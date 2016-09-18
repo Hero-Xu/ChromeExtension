@@ -1,0 +1,28 @@
+{
+   "background": {
+      "scripts": [ "background.js" ]
+   },
+   "browser_action": {
+      "default_icon": "icons/tools.png",
+      "default_title": "Bug tools"
+   },
+   "default_locale": "zh_CN",
+   "description": "Bug tools",
+   "icons": {
+      "128": "icons/tools.png",
+      "16": "icons/tools.png",
+      "32": "icons/tools.png",
+      "48": "icons/tools.png"
+   },
+   "manifest_version": 2,
+   "name": "Bug tools",
+   "permissions": [ "tabs",
+         "contextMenus",
+         "downloads",
+         "storage",
+         "http://*/*", 
+         "https://*/*", 
+         "notifications",
+         "nativeMessaging"],
+   "version": "2.0.0"
+}

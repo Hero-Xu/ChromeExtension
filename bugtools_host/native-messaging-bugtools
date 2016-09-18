@@ -1,0 +1,103 @@
+#!/usr/bin/env python
+# Copyright (c) 2012 The Chromium Authors. All rights reserved.
+# Use of this source code is governed by a BSD-style license that can be
+# found in the LICENSE file.
+
+# A simple native messaging host. Shows a Tkinter dialog with incoming messages
+# that also allows to send message back to the webapp.
+
+import struct
+import sys
+import threading
+import Queue
+import os
+import json
+
+# On Windows, the default I/O mode is O_TEXT. Set this to O_BINARY
+# to avoid unwanted modifications of the input/output streams.
+if sys.platform == "win32":
+  import os, msvcrt
+  msvcrt.setmode(sys.stdin.fileno(), os.O_BINARY)
+  msvcrt.setmode(sys.stdout.fileno(), os.O_BINARY)
+
+# Helper function that sends a message to the webapp.
+def send_message(message):
+   # Write message size.
+  sys.stdout.write(struct.pack('I', len(message)))
+  # Write the message itself.
+  sys.stdout.write(message)
+  sys.stdout.flush()
+
+class JSONObject:
+     def __init__(self, d):
+         self.__dict__ = d
+
+# Thread that reads messages from the webapp.
+
+def read_thread_func(queue):
+  message_number = 0
+  while 1:
+    # Read the message length (first 4 bytes).
+    text_length_bytes = sys.stdin.read(4)
+
+    if len(text_length_bytes) == 0:
+      if queue:
+        queue.put(None)
+      sys.exit(0)
+
+    # Unpack message length as 4 byte integer.
+    text_length = struct.unpack('i', text_length_bytes)[0]
+
+    # Read the text (JSON object) of the message.
+    text = sys.stdin.read(text_length).decode('utf-8')
+    # text = 'hello world'
+    # print text
+    if queue:
+      queue.put(text)
+    else:
+      send_message('{"echo": %s}' % text)
+      msg = json.loads(text)
+      handle_message(msg)
+
+
+def handle_message(msg):
+  if msg['state'] == "complete":
+    print msg['filename']
+    if msg['filename'].endswith("zip"):
+      cmd = "rm -rf ./bug/*; mkdir -p ./bug/;unzip -o -d ./bug/ " + msg['filename'] + "; rm " + msg['filename'] + ";java -jar ./chkbugreport.jar ./bug/*.log;cd ./bug/*.log_out;google-chrome ./index.html"
+      os.popen(cmd)
+    else:
+      cmd = ("rm -rf $HOME/Downloads/bug/*; mkdir -p $HOME/Downloads/bug/;cp %s $HOME/Downloads/bug/ " % msg['filename']) + "; rm " + msg['filename']
+      os.popen(cmd)
+
+
+def Main():
+  # http_thread = threading.Thread(target=http_server, args=())
+  # http_thread.start()
+
+  # send_message('"Tkinter python module wasn\'t found. Running in headless ' +
+  #              'mode. Please consider installing Tkinter."')
+  read_thread_func(None)
+  sys.exit(0)
+
+
+import BaseHTTPServer
+from SimpleHTTPServer import SimpleHTTPRequestHandler
+
+def http_server():
+  HandlerClass = SimpleHTTPRequestHandler
+  ServerClass  = BaseHTTPServer.HTTPServer
+  Protocol     = "HTTP/1.0"
+
+  port = 8000
+  server_address = ('127.0.0.1', port)
+
+  HandlerClass.protocol_version = Protocol
+  httpd = ServerClass(server_address, HandlerClass)
+
+  sa = httpd.socket.getsockname()
+  # print "Serving HTTP on", sa[0], "port", sa[1], "..."
+  httpd.serve_forever()
+
+if __name__ == '__main__':
+  Main()
